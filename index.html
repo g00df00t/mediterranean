@@ -65,8 +65,16 @@
           <div class="text-[10px] uppercase tracking-wide text-emerald-900/45 font-600 mt-1.5">To buy</div>
         </div>
       </div>
+      <div class="flex items-center justify-between bg-white rounded-2xl p-2 shadow-soft mb-3">
+        <button onclick="changeWeek(-1)" class="press w-10 h-10 rounded-xl bg-sand-100 text-brand-700 flex items-center justify-center text-xl leading-none">‹</button>
+        <button onclick="goThisWeek()" class="text-center leading-tight px-2">
+          <div id="weekLabel" class="text-[13px] font-700 text-brand-700">This Week</div>
+          <div id="weekDates" class="text-[11.5px] text-emerald-900/45 font-600"></div>
+        </button>
+        <button onclick="changeWeek(1)" class="press w-10 h-10 rounded-xl bg-sand-100 text-brand-700 flex items-center justify-center text-xl leading-none">›</button>
+      </div>
       <div class="flex items-center justify-between mb-3.5">
-        <h2 class="font-display text-lg font-600">This Week</h2>
+        <h2 class="font-display text-lg font-600">Menu</h2>
         <div class="flex gap-2">
           <button onclick="surprise()" class="press text-[12.5px] font-600 bg-brand-50 text-brand-700 rounded-xl px-3 py-2">🎲 Fill week</button>
           <button onclick="clearWeek()" class="press text-[12.5px] font-600 bg-orange-50 text-clay rounded-xl px-3 py-2">Clear</button>
@@ -205,16 +213,34 @@ const AISLE_ORDER=["Produce","Meat & Seafood","Dairy & Eggs","Bakery","Pantry","
 const AISLE_ICON={"Produce":"🥬","Meat & Seafood":"🐟","Dairy & Eggs":"🧀","Bakery":"🍞","Pantry":"🥫","Spices":"🧂","Frozen":"❄️"};
 
 /* ============ STATE ============ */
-// plan[day] = { id:recipeId, leftover:Boolean }
-let plan = normalizePlan(load("medplan_plan", {}));
-let checks = load("medplan_checks", {});
+// plans[weekKey][day] = { id:recipeId, leftover:Boolean }   weekKey = Monday's date (YYYY-MM-DD)
+// checksAll[weekKey][itemKey] = true
+let plans = load("medplan_plans", null);
+let checksAll = load("medplan_checks_v2", null);
+let weekOffset = 0;           // 0 = current week, 1 = next week, -1 = last week …
+let plan = {}, checks = {};   // references to the active week (set by setActiveWeek)
 let activeFilter = "All";
 let hideDone = false;
 
 function normalizePlan(p){const o={};for(const d in p){const v=p[d];if(v==null)continue;o[d]=(typeof v==="number")?{id:v,leftover:false}:v;}return o;}
-
 function load(k,d){try{return JSON.parse(localStorage.getItem(k))||d;}catch(e){return d;}}
-function save(){localStorage.setItem("medplan_plan",JSON.stringify(plan));localStorage.setItem("medplan_checks",JSON.stringify(checks));}
+function save(){localStorage.setItem("medplan_plans",JSON.stringify(plans));localStorage.setItem("medplan_checks_v2",JSON.stringify(checksAll));}
+
+/* ----- week helpers ----- */
+function mondayOf(offset){const t=new Date();const m=new Date(t.getFullYear(),t.getMonth(),t.getDate());m.setDate(m.getDate()-((t.getDay()+6)%7)+offset*7);return m;}
+function keyOf(offset){const m=mondayOf(offset);return m.getFullYear()+"-"+String(m.getMonth()+1).padStart(2,"0")+"-"+String(m.getDate()).padStart(2,"0");}
+function weekTitle(o){if(o===0)return"This Week";if(o===1)return"Next Week";if(o===-1)return"Last Week";return o>1?("In "+o+" Weeks"):(Math.abs(o)+" Weeks Ago");}
+function fmtRange(m){const mo=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];const s=new Date(m),e=new Date(m);e.setDate(s.getDate()+6);const a=mo[s.getMonth()]+" "+s.getDate();const b=(s.getMonth()===e.getMonth()?e.getDate():mo[e.getMonth()]+" "+e.getDate());return a+" – "+b;}
+function setActiveWeek(){const k=keyOf(weekOffset);if(!plans[k])plans[k]={};if(!checksAll[k])checksAll[k]={};plan=plans[k];checks=checksAll[k];}
+function changeWeek(delta){weekOffset+=delta;setActiveWeek();renderPlan();updateBadge();if(document.getElementById("view-shop").classList.contains("active"))renderShop();}
+function goThisWeek(){if(weekOffset===0)return;weekOffset=0;setActiveWeek();renderPlan();updateBadge();toast("Back to this week");}
+
+/* migrate older single-week saves into the current week, once */
+(function migrate(){
+  if(plans===null){plans={};const old=load("medplan_plan",null);if(old)plans[keyOf(0)]=normalizePlan(old);}
+  if(checksAll===null){checksAll={};const oc=load("medplan_checks",null);if(oc)checksAll[keyOf(0)]=oc;}
+  setActiveWeek();
+})();
 function recipe(id){return RECIPES.find(r=>r.id===id);}
 
 /* ============ NAV ============ */
@@ -234,13 +260,16 @@ function show(v){
 /* ============ PLAN ============ */
 function renderPlan(){
   const c=document.getElementById("days");c.innerHTML="";
-  const today=new Date();const monday=new Date(today);
-  monday.setDate(today.getDate()-((today.getDay()+6)%7));
+  const monday=mondayOf(weekOffset);
+  const todayStr=new Date().toDateString();
+  document.getElementById("weekLabel").textContent=weekTitle(weekOffset);
+  document.getElementById("weekDates").textContent=fmtRange(monday);
   DOW.forEach((d,i)=>{
     const date=new Date(monday);date.setDate(monday.getDate()+i);
+    const isToday=date.toDateString()===todayStr;
     const entry=plan[d];const r=entry?recipe(entry.id):null;const lo=entry&&entry.leftover;
     const card=document.createElement("div");
-    card.className="bg-white rounded-2xl p-3.5 shadow-soft flex items-center gap-3.5"+(lo?" ring-1 ring-amber-200":"");
+    card.className="bg-white rounded-2xl p-3.5 shadow-soft flex items-center gap-3.5"+(lo?" ring-1 ring-amber-200":"")+(isToday?" ring-2 ring-brand-400":"");
     const view=`<button onclick="openRecipe(${r?r.id:0})" class="press w-9 h-9 rounded-xl bg-sand-100 text-brand-700 flex items-center justify-center text-[15px]">👁</button>`;
     const remove=`<button onclick="removeDay('${d}')" class="press w-9 h-9 rounded-xl bg-sand-100 text-emerald-900/50 flex items-center justify-center text-[15px]">✕</button>`;
     const leftoverBtn=`<button onclick="addLeftovers('${d}')" class="press w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-[15px]" title="Add as leftovers on the next free day">♻</button>`;
@@ -283,7 +312,7 @@ function surprise(){
   DOW.forEach((d,i)=>{plan[d]={id:pool[i%pool.length].id,leftover:false};});
   save();renderPlan();updateBadge();toast("Week filled with quick dinners 🎲");
 }
-function clearWeek(){plan={};save();renderPlan();updateBadge();toast("Week cleared");}
+function clearWeek(){Object.keys(plan).forEach(d=>delete plan[d]);save();renderPlan();updateBadge();toast("Week cleared");}
 
 function updateStats(){
   const entries=Object.values(plan);
@@ -390,7 +419,8 @@ function renderShop(){
   c.innerHTML="";
   const prog=document.createElement("div");
   prog.className="bg-white rounded-2xl p-4 shadow-soft mb-3.5";
-  prog.innerHTML=`<div class="flex justify-between items-baseline mb-2.5">
+  prog.innerHTML=`<div class="text-[11.5px] text-emerald-900/45 font-600 mb-1.5">${weekTitle(weekOffset)} · ${fmtRange(mondayOf(weekOffset))}</div>
+    <div class="flex justify-between items-baseline mb-2.5">
       <span class="text-[13px] font-700">🛒 ${got} of ${total} in the cart</span>
       <span class="text-[12px] text-emerald-900/45 font-600">${pct}%</span></div>
     <div class="h-2.5 bg-brand-50 rounded-full overflow-hidden"><div class="bar-fill h-full bg-gradient-to-r from-brand-500 to-brand-700 rounded-full" style="width:${pct}%"></div></div>`;
@@ -423,7 +453,7 @@ function renderShop(){
 }
 function toggleCheck(key){checks[key]=!checks[key];save();renderShop();updateBadge();}
 function setHide(v){hideDone=v;renderShop();}
-function resetChecks(){checks={};save();renderShop();toast("Checks reset");}
+function resetChecks(){Object.keys(checks).forEach(k=>delete checks[k]);save();renderShop();toast("Checks reset");}
 
 /* ============ MISC ============ */
 function updateBadge(){

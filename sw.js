@@ -1,5 +1,5 @@
 /* Pat's Mediterranean Bistro - offline service worker */
-const CACHE = 'opa-kitchen-v2';
+const CACHE = 'opa-kitchen-v3';
 const ASSETS = [
   './',
   'index.html',
