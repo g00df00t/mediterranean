@@ -1,5 +1,5 @@
 /* Pat's Mediterranean Bistro - offline service worker */
-const CACHE = 'opa-kitchen-v8';
+const CACHE = 'opa-kitchen-v11';
 const ASSETS = [
   './',
   'index.html',
@@ -27,18 +27,35 @@ self.addEventListener('activate', function (e) {
   );
 });
 
-/* Cache-first: instant loads and full offline use */
 self.addEventListener('fetch', function (e) {
   if (e.request.method !== 'GET') return;
-  e.respondWith(
-    caches.match(e.request).then(function (hit) {
-      return hit || fetch(e.request).then(function (res) {
+  var req = e.request;
+  var isHTML = req.mode === 'navigate' ||
+               (req.headers.get('accept') || '').indexOf('text/html') !== -1;
+
+  if (isHTML) {
+    /* Network-first for the page: always get the latest when online,
+       fall back to the cached copy when offline. */
+    e.respondWith(
+      fetch(req).then(function (res) {
         var copy = res.clone();
-        caches.open(CACHE).then(function (c) { c.put(e.request, copy); });
+        caches.open(CACHE).then(function (c) { c.put('index.html', copy); });
         return res;
       }).catch(function () {
-        return caches.match('index.html'); // fallback for navigations offline
-      });
+        return caches.match(req).then(function (h) { return h || caches.match('index.html'); });
+      })
+    );
+    return;
+  }
+
+  /* Cache-first for everything else (icons, manifest): instant + offline. */
+  e.respondWith(
+    caches.match(req).then(function (hit) {
+      return hit || fetch(req).then(function (res) {
+        var copy = res.clone();
+        caches.open(CACHE).then(function (c) { c.put(req, copy); });
+        return res;
+      }).catch(function () { return caches.match('index.html'); });
     })
   );
 });

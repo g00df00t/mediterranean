@@ -6,9 +6,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#047857">
-<title>Pat's Mediterranean Kitchen</title>
+<title>Opa! Kitchen</title>
 <link rel="manifest" href="manifest.json">
-<meta name="apple-mobile-web-app-title" content="Kitchen">
+<meta name="apple-mobile-web-app-title" content="Opa! Kitchen">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" href="icon-192.png">
 <style id="tw-inline">
@@ -58,7 +58,7 @@
         </svg>
       </div>
       <div class="min-w-0">
-        <h1 class="font-display text-[19px] leading-tight font-600">Pat's Mediterranean Kitchen</h1>
+        <h1 class="font-display text-[19px] leading-tight font-600">Opa! Kitchen</h1>
         <p class="text-[12.5px] text-brand-100/90 font-500 mt-0.5">Easy weeknight dinners · for 1–2</p>
       </div>
     </div>
@@ -119,6 +119,13 @@
       <div id="shop"></div>
     </section>
   </main>
+
+  <!-- INSTALL HINT (shown only to first-time Safari visitors, hidden once installed) -->
+  <div id="installHint" class="hidden shrink-0 bg-brand-50 border-t border-sand-200 px-4 py-3 items-center gap-3">
+    <span class="text-[21px] leading-none">📲</span>
+    <div class="flex-1 text-[12.5px] text-brand-700 font-600 leading-tight">Install <b>Opa! Kitchen</b>: tap the <b>Share</b> button, then <b>Add to Home Screen</b>.</div>
+    <button onclick="dismissInstallHint()" aria-label="Dismiss" class="press w-9 h-9 rounded-full bg-white text-emerald-900/50 flex items-center justify-center text-[15px] shrink-0">✕</button>
+  </div>
 
   <!-- BOTTOM NAV (anchored: in-flow bottom of the flex column) -->
   <nav class="shrink-0 bg-white border-t border-sand-200 flex pb-safe pt-2 z-30">
@@ -286,6 +293,23 @@ function renderPickBanner(){
   else{b.classList.add("hidden");b.classList.remove("flex");}
 }
 function cancelPick(){pickingDay=null;show("plan");}
+
+/* ----- install hint (iOS Safari, first visit only) ----- */
+function isStandalone(){return (window.matchMedia&&window.matchMedia("(display-mode: standalone)").matches)||window.navigator.standalone===true;}
+function maybeShowInstallHint(){
+  try{
+    if(isStandalone())return;                                   // already installed
+    if(localStorage.getItem("opa_hide_install"))return;          // dismissed before
+    if(!/iphone|ipad|ipod/i.test(navigator.userAgent))return;    // iOS only
+    const el=document.getElementById("installHint");
+    el.classList.remove("hidden");el.classList.add("flex");
+  }catch(e){}
+}
+function dismissInstallHint(){
+  try{localStorage.setItem("opa_hide_install","1");}catch(e){}
+  const el=document.getElementById("installHint");
+  el.classList.add("hidden");el.classList.remove("flex");
+}
 function goBack(){
   const modal=document.getElementById("modal");
   if(!modal.classList.contains("hidden")){closeModal();return true;}
@@ -521,7 +545,7 @@ function toast(msg){
 }
 
 /* ============ INIT ============ */
-renderPlan();renderRecipes();updateBadge();
+renderPlan();renderRecipes();updateBadge();maybeShowInstallHint();
 </script>
 <script>
 /* register service worker for offline use */
