@@ -89,6 +89,9 @@
 
     <!-- RECIPES -->
     <section id="view-recipes" class="view">
+      <button id="pickBanner" onclick="cancelPick()" class="hidden press w-full items-center gap-2 bg-brand-50 text-brand-700 rounded-xl px-3 py-2.5 text-[13px] font-700 mb-3">
+        <span class="text-lg leading-none">‹</span><span id="pickBannerText">Back to Plan</span>
+      </button>
       <input id="search" oninput="renderRecipes()" placeholder="Search recipes or ingredients…"
         class="w-full bg-white border border-sand-200 rounded-2xl px-4 py-3 text-[15px] outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 mb-3 placeholder:text-emerald-900/35">
       <div id="filters" class="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-1"></div>
@@ -256,10 +259,41 @@ function show(v){
     b.classList.toggle("text-brand-600",n===v);
     b.classList.toggle("text-emerald-900/40",n!==v);
   });
+  if(v!=="recipes")pickingDay=null;
   if(v==="shop")renderShop();
   if(v==="recipes")renderRecipes();
   const m=document.querySelector("main");if(m)m.scrollTop=0;
 }
+
+/* ----- back navigation (button + swipe) ----- */
+let pickingDay=null;
+function renderPickBanner(){
+  const b=document.getElementById("pickBanner");
+  if(pickingDay){b.classList.remove("hidden");b.classList.add("flex");
+    document.getElementById("pickBannerText").textContent="Back to Plan · choosing for "+pickingDay;}
+  else{b.classList.add("hidden");b.classList.remove("flex");}
+}
+function cancelPick(){pickingDay=null;show("plan");}
+function goBack(){
+  const modal=document.getElementById("modal");
+  if(!modal.classList.contains("hidden")){closeModal();return true;}
+  const onPlan=document.getElementById("view-plan").classList.contains("active");
+  if(!onPlan){show("plan");return true;}
+  return false;
+}
+/* right-swipe to go back (ignores horizontal scrollers like the filter row) */
+(function(){
+  let x0=0,y0=0,track=false;
+  document.addEventListener("touchstart",function(e){
+    const t=e.touches[0];x0=t.clientX;y0=t.clientY;
+    track=!(e.target.closest&&e.target.closest(".overflow-x-auto"));
+  },{passive:true});
+  document.addEventListener("touchend",function(e){
+    if(!track)return;
+    const t=e.changedTouches[0];const dx=t.clientX-x0, dy=t.clientY-y0;
+    if(dx>80&&Math.abs(dy)<50)goBack();
+  },{passive:true});
+})();
 
 /* ============ PLAN ============ */
 function renderPlan(){
@@ -298,7 +332,7 @@ function renderPlan(){
   });
   updateStats();
 }
-function openPicker(d){show("recipes");toast("Pick a recipe for "+d);}
+function openPicker(d){pickingDay=d;show("recipes");renderPickBanner();toast("Pick a recipe for "+d);}
 function removeDay(d){delete plan[d];save();renderPlan();updateBadge();}
 function assignDay(d,id){plan[d]={id:id,leftover:false};save();renderPlan();}
 function addLeftovers(d){
@@ -341,6 +375,7 @@ function renderFilters(){
   });
 }
 function renderRecipes(){
+  renderPickBanner();
   renderFilters();
   const q=(document.getElementById("search").value||"").toLowerCase();
   const c=document.getElementById("recipes");c.innerHTML="";
@@ -392,7 +427,7 @@ function openRecipe(id){
     </div>`;
   const m=document.getElementById("modal");m.classList.remove("hidden");m.classList.add("flex");
 }
-function assignFromModal(d,id){assignDay(d,id);closeModal();show("plan");toast(recipe(id).name+" → "+d);updateBadge();}
+function assignFromModal(d,id){pickingDay=null;assignDay(d,id);closeModal();show("plan");toast(recipe(id).name+" → "+d);updateBadge();}
 function closeModal(){const m=document.getElementById("modal");m.classList.add("hidden");m.classList.remove("flex");}
 function fmtQty(q,u){if(q===""||q==null)return u||"";let n=q%1===0?q:(Math.round(q*100)/100);return (u?`${n} ${u}`:`${n}`).trim();}
 
