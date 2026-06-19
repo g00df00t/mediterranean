@@ -1,6 +1,6 @@
 {
-  "name": "Pat's Mediterranean Bistro",
-  "short_name": "Bistro",
+  "name": "Pat's Mediterranean Kitchen",
+  "short_name": "Kitchen",
   "description": "Plan easy Mediterranean weeknight dinners and build your grocery list.",
   "start_url": "./",
   "scope": "./",
