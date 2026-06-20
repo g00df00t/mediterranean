@@ -1,9 +1,10 @@
-/* Pat's Mediterranean Bistro - offline service worker */
-const CACHE = 'opa-kitchen-v12';
+/* Opa! Kitchen - offline service worker */
+const CACHE = 'opa-kitchen-v13';
 const ASSETS = [
   './',
   'index.html',
   'manifest.json',
+  'firebase-config.js',
   'icon-180.png',
   'icon-192.png',
   'icon-512.png'
