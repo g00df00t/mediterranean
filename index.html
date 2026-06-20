@@ -116,7 +116,10 @@
     <section id="view-shop" class="view">
       <div class="flex items-center justify-between mb-3.5">
         <h2 class="font-display text-lg font-600">Grocery List</h2>
-        <button onclick="resetChecks()" class="press text-[12.5px] font-600 bg-brand-50 text-brand-700 rounded-xl px-3 py-2">Reset</button>
+        <div class="flex gap-2">
+          <button onclick="openExtras()" class="press text-[12.5px] font-600 bg-brand-600 text-white rounded-xl px-3 py-2">+ Extras</button>
+          <button onclick="resetChecks()" class="press text-[12.5px] font-600 bg-brand-50 text-brand-700 rounded-xl px-3 py-2">Reset</button>
+        </div>
       </div>
       <div id="shop"></div>
     </section>
@@ -245,21 +248,22 @@ const AISLE_ICON={"Produce":"🥬","Meat & Seafood":"🐟","Dairy & Eggs":"🧀"
 // checksAll[weekKey][itemKey] = true
 let plans = load("medplan_plans", null);
 let checksAll = load("medplan_checks_v2", null);
+let extrasAll = load("medplan_extras", null);   // extrasAll[weekKey] = [ {n:"milk", done:false}, ... ]
 let weekOffset = 0;           // 0 = current week, 1 = next week, -1 = last week …
-let plan = {}, checks = {};   // references to the active week (set by setActiveWeek)
+let plan = {}, checks = {}, extras = [];   // references to the active week (set by setActiveWeek)
 let activeFilter = "All";
 let hideDone = false;
 
 function normalizePlan(p){const o={};for(const d in p){const v=p[d];if(v==null)continue;o[d]=(typeof v==="number")?{id:v,leftover:false}:v;}return o;}
 function load(k,d){try{return JSON.parse(localStorage.getItem(k))||d;}catch(e){return d;}}
-function save(){localStorage.setItem("medplan_plans",JSON.stringify(plans));localStorage.setItem("medplan_checks_v2",JSON.stringify(checksAll));if(typeof pushSync==="function")pushSync();}
+function save(){localStorage.setItem("medplan_plans",JSON.stringify(plans));localStorage.setItem("medplan_checks_v2",JSON.stringify(checksAll));localStorage.setItem("medplan_extras",JSON.stringify(extrasAll));if(typeof pushSync==="function")pushSync();}
 
 /* ----- week helpers ----- */
 function mondayOf(offset){const t=new Date();const m=new Date(t.getFullYear(),t.getMonth(),t.getDate());m.setDate(m.getDate()-((t.getDay()+6)%7)+offset*7);return m;}
 function keyOf(offset){const m=mondayOf(offset);return m.getFullYear()+"-"+String(m.getMonth()+1).padStart(2,"0")+"-"+String(m.getDate()).padStart(2,"0");}
 function weekTitle(o){if(o===0)return"This Week";if(o===1)return"Next Week";if(o===-1)return"Last Week";return o>1?("In "+o+" Weeks"):(Math.abs(o)+" Weeks Ago");}
 function fmtRange(m){const mo=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];const s=new Date(m),e=new Date(m);e.setDate(s.getDate()+6);const a=mo[s.getMonth()]+" "+s.getDate();const b=(s.getMonth()===e.getMonth()?e.getDate():mo[e.getMonth()]+" "+e.getDate());return a+" – "+b;}
-function setActiveWeek(){const k=keyOf(weekOffset);if(!plans[k])plans[k]={};if(!checksAll[k])checksAll[k]={};plan=plans[k];checks=checksAll[k];}
+function setActiveWeek(){const k=keyOf(weekOffset);if(!plans[k])plans[k]={};if(!checksAll[k])checksAll[k]={};if(!extrasAll[k])extrasAll[k]=[];plan=plans[k];checks=checksAll[k];extras=extrasAll[k];}
 function changeWeek(delta){weekOffset+=delta;setActiveWeek();renderPlan();updateBadge();if(document.getElementById("view-shop").classList.contains("active"))renderShop();}
 function goThisWeek(){if(weekOffset===0)return;weekOffset=0;setActiveWeek();renderPlan();updateBadge();toast("Back to this week");}
 
@@ -267,6 +271,7 @@ function goThisWeek(){if(weekOffset===0)return;weekOffset=0;setActiveWeek();rend
 (function migrate(){
   if(plans===null){plans={};const old=load("medplan_plan",null);if(old)plans[keyOf(0)]=normalizePlan(old);}
   if(checksAll===null){checksAll={};const oc=load("medplan_checks",null);if(oc)checksAll[keyOf(0)]=oc;}
+  if(extrasAll===null){extrasAll={};}
   setActiveWeek();
 })();
 function recipe(id){return RECIPES.find(r=>r.id===id);}
@@ -324,15 +329,15 @@ function connectSync(){
 }
 function onRemoteData(remote){
   if(remote==null){pushSync();return;}              // brand-new kitchen: seed it with our data
-  const incoming=JSON.stringify({plans:remote.plans||{},checksAll:remote.checksAll||{}});
-  const current=JSON.stringify({plans:plans,checksAll:checksAll});
+  const incoming=JSON.stringify({plans:remote.plans||{},checksAll:remote.checksAll||{},extras:remote.extras||{}});
+  const current=JSON.stringify({plans:plans,checksAll:checksAll,extras:extrasAll});
   if(incoming===current)return;                     // unchanged / echo of our own write
-  plans=remote.plans||{};checksAll=remote.checksAll||{};
+  plans=remote.plans||{};checksAll=remote.checksAll||{};extrasAll=remote.extras||{};
   setActiveWeek();renderPlan();
   if(document.getElementById("view-shop").classList.contains("active"))renderShop();
   updateBadge();
 }
-function pushSync(){if(window.OpaSync&&kitchenCode)window.OpaSync.push({plans:plans,checksAll:checksAll});}
+function pushSync(){if(window.OpaSync&&kitchenCode)window.OpaSync.push({plans:plans,checksAll:checksAll,extras:extrasAll});}
 function updateSyncUI(){
   const dot=document.getElementById("syncDot");if(!dot)return;
   if(kitchenCode&&syncLive)dot.classList.remove("hidden");else dot.classList.add("hidden");
@@ -459,7 +464,7 @@ function updateStats(){
   const fresh=entries.filter(e=>!e.leftover);
   const avg=fresh.length?Math.round(fresh.reduce((s,e)=>s+recipe(e.id).time,0)/fresh.length):0;
   document.getElementById("stat-time").textContent=avg;
-  document.getElementById("stat-items").textContent=buildList().length;
+  document.getElementById("stat-items").textContent=buildList().length+extras.length;
 }
 
 /* ============ RECIPES ============ */
@@ -548,14 +553,17 @@ function buildList(){
 }
 function renderShop(){
   const items=buildList();const c=document.getElementById("shop");
-  if(!items.length){
+  if(!items.length&&!extras.length){
     c.innerHTML=`<div class="text-center py-12 text-emerald-900/45">
       <div class="text-5xl mb-3">🛒</div>
       <p class="text-sm mb-4">No dinners planned yet.<br>Add some on the Plan tab and your<br>grocery list builds itself.</p>
-      <button onclick="show('plan')" class="press bg-brand-600 text-white rounded-xl px-4 py-2.5 text-[13.5px] font-600">Go to Plan</button></div>`;
+      <button onclick="show('plan')" class="press bg-brand-600 text-white rounded-xl px-4 py-2.5 text-[13.5px] font-600 mb-2">Go to Plan</button>
+      <div><button onclick="openExtras()" class="press bg-brand-50 text-brand-700 rounded-xl px-4 py-2.5 text-[13.5px] font-600">+ Add extras</button></div></div>`;
     return;
   }
-  const total=items.length, got=items.filter(i=>checks[i.key]).length, pct=total?Math.round(got/total*100):0;
+  const total=items.length+extras.length;
+  const got=items.filter(i=>checks[i.key]).length+extras.filter(x=>x.done).length;
+  const pct=total?Math.round(got/total*100):0;
   c.innerHTML="";
   const prog=document.createElement("div");
   prog.className="bg-white rounded-2xl p-4 shadow-soft mb-3.5";
@@ -590,14 +598,88 @@ function renderShop(){
     });
     c.appendChild(g);
   });
+  /* Extras group (manual items) */
+  let xs=extras.map((x,idx)=>({x,idx}));
+  if(hideDone)xs=xs.filter(o=>!o.x.done);
+  if(xs.length){
+    const g=document.createElement("div");g.className="mb-5";
+    g.innerHTML=`<h3 class="text-[12px] uppercase tracking-wide text-brand-700/70 font-700 mb-2 flex items-center gap-2">➕ Extras</h3>`;
+    xs.forEach(o=>{
+      const done=!!o.x.done;
+      const el=document.createElement("div");
+      el.className="bg-white rounded-xl px-3.5 py-3 mb-2 flex items-center gap-3 shadow-soft";
+      el.innerHTML=`
+        <div class="press w-6 h-6 rounded-lg flex items-center justify-center text-white text-[14px] shrink-0 border-2 cursor-pointer ${done?'bg-brand-600 border-brand-600':'border-sand-200'}">${done?"✓":""}</div>
+        <div class="flex-1 text-[14px] font-600 cursor-pointer ${done?'line-through text-emerald-900/40':''}">${escapeHtml(o.x.n)}</div>
+        <button class="press w-7 h-7 rounded-full bg-sand-100 text-emerald-900/45 flex items-center justify-center text-[13px] shrink-0">✕</button>`;
+      el.children[0].onclick=()=>toggleExtra(o.idx);
+      el.children[1].onclick=()=>toggleExtra(o.idx);
+      el.children[2].onclick=(ev)=>{ev.stopPropagation();removeExtra(o.idx);};
+      g.appendChild(el);
+    });
+    c.appendChild(g);
+  }
 }
 function toggleCheck(key){checks[key]=!checks[key];save();renderShop();updateBadge();}
 function setHide(v){hideDone=v;renderShop();}
-function resetChecks(){Object.keys(checks).forEach(k=>delete checks[k]);save();renderShop();toast("Checks reset");}
+function resetChecks(){Object.keys(checks).forEach(k=>delete checks[k]);extras.forEach(x=>x.done=false);save();renderShop();updateBadge();toast("Checks reset");}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
+
+/* ----- extras (manual items / paste / photo) ----- */
+function toggleExtra(i){if(extras[i]){extras[i].done=!extras[i].done;save();renderShop();updateBadge();}}
+function removeExtra(i){extras.splice(i,1);save();renderShop();updateBadge();}
+function parseExtras(text){
+  let parts=String(text||"").split(/\n+/);
+  if(parts.length<=1)parts=String(text||"").split(/[,;]+/); // single line: split on commas
+  return parts.map(s=>s.replace(/^[\s\-\*•·\d\.\)\]]+/,"").trim()).filter(s=>s.length>0&&s.length<80);
+}
+function addExtrasFromText(){
+  const ta=document.getElementById("extraText");if(!ta)return;
+  const names=parseExtras(ta.value);
+  if(!names.length){toast("Nothing to add");return;}
+  names.forEach(n=>extras.push({n:n,done:false}));
+  save();closeModal();show("shop");toast("Added "+names.length+" item"+(names.length>1?"s":"")+" to Extras");updateBadge();
+}
+function openExtras(){
+  document.getElementById("sheet").innerHTML=`
+    <div class="h-[84px] flex items-center justify-center text-[34px] relative bg-brand-50">➕
+      <button onclick="closeModal()" aria-label="Close" class="press absolute top-3 right-3 z-20 w-11 h-11 rounded-full bg-white text-emerald-950 flex items-center justify-center text-[19px] shadow-soft">✕</button>
+    </div>
+    <div class="p-5">
+      <h2 class="font-display text-[22px] font-600 leading-tight mb-2">Add extras</h2>
+      <p class="text-[14px] text-emerald-900/55 mb-3">Type or paste items, one per line — like a list from your Notes app.</p>
+      <textarea id="extraText" rows="6" placeholder="Milk&#10;Paper towels&#10;Coffee" autocapitalize="sentences" class="w-full bg-white border border-sand-200 rounded-2xl px-4 py-3 text-[15px] outline-none focus:border-brand-500 mb-3" style="resize:vertical"></textarea>
+      <div class="flex gap-2 mb-3">
+        <button onclick="document.getElementById('extraPhoto').click()" class="press flex-1 bg-brand-50 text-brand-700 rounded-xl py-3 text-[13.5px] font-700">📷 Scan a photo</button>
+        <button onclick="addExtrasFromText()" class="press flex-1 bg-brand-600 text-white rounded-xl py-3 text-[13.5px] font-700">Add to list</button>
+      </div>
+      <input id="extraPhoto" type="file" accept="image/*" capture="environment" class="hidden" onchange="scanPhoto(this.files&&this.files[0])">
+      <p id="extraStatus" class="text-[12px] text-emerald-900/45"></p>
+      <p class="text-[12px] text-emerald-900/45 mt-1">Tip: photo scanning works best on clear, printed writing. For messy handwriting you may need to fix a few words before adding.</p>
+    </div>`;
+  const m=document.getElementById("modal");m.classList.remove("hidden");m.classList.add("flex");
+}
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement("script");s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
+async function scanPhoto(file){
+  if(!file)return;
+  const st=document.getElementById("extraStatus");
+  const setSt=t=>{if(st)st.textContent=t;};
+  setSt("Reading photo… this can take a moment.");
+  try{
+    if(!window.Tesseract){await loadScript("https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js");}
+    const res=await Tesseract.recognize(file,"eng",{logger:m=>{if(m.status==="recognizing text")setSt("Reading photo… "+Math.round((m.progress||0)*100)+"%");}});
+    const text=(res&&res.data&&res.data.text||"").trim();
+    const ta=document.getElementById("extraText");
+    if(ta){ta.value=(ta.value?ta.value.trim()+"\n":"")+text;}
+    setSt(text?"Done — check the text above, fix anything, then tap Add to list.":"Couldn't read any text. Try a clearer photo, or type it in.");
+  }catch(e){
+    setSt("Couldn't scan (need internet the first time). You can type or paste instead.");
+  }
+}
 
 /* ============ MISC ============ */
 function updateBadge(){
-  const n=buildList().filter(i=>!checks[i.key]).length;
+  const n=buildList().filter(i=>!checks[i.key]).length+extras.filter(x=>!x.done).length;
   const b=document.getElementById("shopBadge");
   if(n>0){b.classList.remove("hidden");b.classList.add("flex");b.textContent=n;}
   else{b.classList.add("hidden");b.classList.remove("flex");}

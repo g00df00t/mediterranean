@@ -1,5 +1,5 @@
 /* Opa! Kitchen - offline service worker */
-const CACHE = 'opa-kitchen-v13';
+const CACHE = 'opa-kitchen-v14';
 const ASSETS = [
   './',
   'index.html',
